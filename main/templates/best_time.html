@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="text-4xl font-bold text-white mb-6">
+        <i class="fas fa-clock mr-2"></i>Best Time to Post
+    </h1>
+
+    {% for item in best_times %}
+    <div class="glass rounded-xl p-6 mb-6">
+        <h2 class="text-2xl font-bold text-white mb-4">
+            <i class="fab fa-{{ item.account.platform }} mr-2"></i>{{ item.account.username }} - {{ item.account.platform|title }}
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {% for time in item.times %}
+            <div class="bg-white bg-opacity-10 rounded-lg p-4 text-center hover:bg-opacity-20 transition">
+                <div class="text-yellow-300 text-3xl font-bold mb-2">{{ time.0 }}:00</div>
+                <div class="text-white text-sm">{{ time.1|floatformat:2 }}% engagement</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="glass rounded-xl p-6">
+        <h2 class="text-2xl font-bold text-white mb-4">Weekly Heatmap</h2>
+        <canvas id="heatmapChart"></canvas>
+    </div>
+</div>
+
+<script>
+    const heatmapData = {{ heatmap_data|safe }};
+    const ctx = document.getElementById('heatmapChart').getContext('2d');
+    
+    const datasets = heatmapData.map((day, idx) => ({
+        label: day.day,
+        data: day.hours,
+        backgroundColor: `rgba(251, 191, 36, ${0.3 + idx * 0.1})`,
+    }));
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Array.from({length: 24}, (_, i) => i + ':00'),
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: 'white' } } },
+            scales: {
+                y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+            }
+        }
+    });
+</script>
+{% endblock %}

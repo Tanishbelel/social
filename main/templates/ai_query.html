@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="fade-in">
+    <h1 class="text-4xl font-bold text-white mb-6">
+        <i class="fas fa-robot mr-2"></i>AI-Powered Query System
+    </h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div class="lg:col-span-2 glass rounded-xl p-6">
+            <h2 class="text-2xl font-bold text-white mb-4">Ask Me Anything About Your Analytics</h2>
+            
+            <form id="queryForm" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <textarea name="query" id="queryInput" rows="4" 
+                        class="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                        placeholder="Example: What was my best performing post last month? Which content type gets the most engagement?"></textarea>
+                </div>
+                
+                <button type="submit" id="submitBtn" 
+                    class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-lg transition transform hover:scale-105">
+                    <i class="fas fa-paper-plane mr-2"></i>Ask AI
+                </button>
+            </form>
+
+            <div id="response" class="mt-6 hidden">
+                <div class="bg-green-500 bg-opacity-20 border border-green-500 rounded-lg p-6">
+                    <div class="flex items-start">
+                        <i class="fas fa-robot text-green-400 text-3xl mr-4"></i>
+                        <div class="flex-1">
+                            <h3 class="text-white font-bold text-lg mb-2">AI Response:</h3>
+                            <p id="responseText" class="text-gray-200 leading-relaxed"></p>
+                            <p id="executionTime" class="text-gray-400 text-sm mt-3"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass rounded-xl p-6">
+            <h2 class="text-xl font-bold text-white mb-4">
+                <i class="fas fa-lightbulb mr-2"></i>Suggested Questions
+            </h2>
+            <div class="space-y-3">
+                <button onclick="fillQuery(this)" data-query="What was my best performing post?" 
+                    class="w-full text-left bg-white bg-opacity-10 hover:bg-opacity-20 text-white p-3 rounded-lg transition">
+                    What was my best performing post?
+                </button>
+                <button onclick="fillQuery(this)" data-query="How is my engagement rate compared to industry standards?" 
+                    class="w-full text-left bg-white bg-opacity-10 hover:bg-opacity-20 text-white p-3 rounded-lg transition">
+                    How is my engagement rate?
+                </button>
+                <button onclick="fillQuery(this)" data-query="Which post type performs best: reels, carousels, or static posts?" 
+                    class="w-full text-left bg-white bg-opacity-10 hover:bg-opacity-20 text-white p-3 rounded-lg transition">
+                    Reels vs Carousels vs Static?
+                </button>
+                <button onclick="fillQuery(this)" data-query="What are my top performing hashtags?" 
+                    class="w-full text-left bg-white bg-opacity-10 hover:bg-opacity-20 text-white p-3 rounded-lg transition">
+                    Top performing hashtags?
+                </button>
+                <button onclick="fillQuery(this)" data-query="When is the best time to post?" 
+                    class="w-full text-left bg-white bg-opacity-10 hover:bg-opacity-20 text-white p-3 rounded-lg transition">
+                    Best time to post?
+                </button>
+                <button onclick="fillQuery(this)" data-query="Show me my performance on Instagram" 
+                    class="w-full text-left bg-white bg-opacity-10 hover:bg-opacity-20 text-white p-3 rounded-lg transition">
+                    Instagram performance?
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass rounded-xl p-6">
+        <h2 class="text-2xl font-bold text-white mb-4">
+            <i class="fas fa-history mr-2"></i>Recent Queries
+        </h2>
+        <div class="space-y-3">
+            {% for log in recent_queries %}
+            <div class="bg-white bg-opacity-10 rounded-lg p-4 hover:bg-opacity-20 transition">
+                <div class="flex justify-between items-start mb-2">
+                    <p class="text-white font-semibold flex-1">{{ log.query }}</p>
+                    <span class="text-xs text-gray-300">{{ log.created_at|timesince }} ago</span>
+                </div>
+                <p class="text-gray-200 text-sm">{{ log.response|truncatewords:30 }}</p>
+                <p class="text-xs text-gray-400 mt-2">Executed in {{ log.execution_time|floatformat:2 }}s</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function fillQuery(btn) {
+        document.getElementById('queryInput').value = btn.dataset.query;
+    }
+
+    document.getElementById('queryForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const submitBtn = document.getElementById('submitBtn');
+        const responseDiv = document.getElementById('response');
+        const responseText = document.getElementById('responseText');
+        const executionTime = document.getElementById('executionTime');
+        const query = document.getElementById('queryInput').value;
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+        responseDiv.classList.add('hidden');
+        
+        const formData = new FormData();
+        formData.append('query', query);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        try {
+            const response = await fetch('{% url "ai_query" %}', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            responseText.textContent = data.response;
+            executionTime.textContent = `Executed in ${data.execution_time} seconds`;
+            responseDiv.classList.remove('hidden');
+            
+            setTimeout(() => location.reload(), 3000);
+        } catch (error) {
+            alert('Error processing query. Please try again.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Ask AI';
+        }
+    });
+</script>
+{% endblock %}

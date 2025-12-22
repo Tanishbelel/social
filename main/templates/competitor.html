@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="text-4xl font-bold text-white mb-6">
+        <i class="fas fa-users mr-2"></i>Competitor Analysis
+    </h1>
+
+    <div class="glass rounded-xl p-6 mb-6">
+        <h2 class="text-2xl font-bold text-white mb-4">Analyze Competitor</h2>
+        <form id="competitorForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {% csrf_token %}
+            <input type="text" name="username" placeholder="Competitor Username" required
+                class="px-4 py-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-400">
+            
+            <select name="platform" required class="px-4 py-3 rounded-lg bg-white bg-opacity-20 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                <option value="instagram">Instagram</option>
+                <option value="twitter">Twitter</option>
+                <option value="facebook">Facebook</option>
+            </select>
+            
+            <button type="submit" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg transition">
+                <i class="fas fa-search mr-2"></i>Analyze
+            </button>
+        </form>
+
+        <div id="analysisResult" class="mt-6 hidden">
+            <div class="bg-green-500 bg-opacity-20 border border-green-500 rounded-lg p-6">
+                <h3 class="text-white font-bold text-xl mb-4">Analysis Results</h3>
+                <div id="resultContent" class="text-gray-200"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for comp in competitors %}
+        <div class="glass rounded-xl p-6">
+            <div class="flex items-center mb-4">
+                <i class="fab fa-{{ comp.platform }} text-4xl text-white mr-3"></i>
+                <div>
+                    <h3 class="text-white font-bold text-xl">{{ comp.competitor_username }}</h3>
+                    <p class="text-gray-300 text-sm">{{ comp.platform|title }}</p>
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <div class="flex justify-between text-white">
+                    <span>Followers:</span>
+                    <span class="font-bold">{{ comp.followers|floatformat:0 }}</span>
+                </div>
+                <div class="flex justify-between text-white">
+                    <span>Avg Engagement:</span>
+                    <span class="font-bold">{{ comp.avg_engagement_rate|floatformat:2 }}%</span>
+                </div>
+                <div class="flex justify-between text-white">
+                    <span>Posts/Week:</span>
+                    <span class="font-bold">{{ comp.posting_frequency|floatformat:1 }}</span>
+                </div>
+                <div class="flex justify-between text-white">
+                    <span>Top Content:</span>
+                    <span class="font-bold">{{ comp.top_content_type|title }}</span>
+                </div>
+            </div>
+            
+            <div class="mt-4 pt-4 border-t border-white border-opacity-20">
+                <p class="text-gray-300 text-xs">Analyzed {{ comp.analyzed_at|timesince }} ago</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+    document.getElementById('competitorForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        const response = await fetch('{% url "competitor" %}', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        document.getElementById('resultContent').innerHTML = `
+            <div class="grid grid-cols-2 gap-4">
+                <div><strong>Competitor:</strong> ${data.competitor}</div>
+                <div><strong>Followers:</strong> ${data.competitor_followers}</div>
+                <div><strong>Their Engagement:</strong> ${data.competitor_engagement}%</div>
+                <div><strong>Your Engagement:</strong> ${data.your_engagement}%</div>
+                <div class="col-span-2"><strong>Performance:</strong> You are ${data.performance}</div>
+                <div class="col-span-2"><strong>Recommendation:</strong> ${data.recommendation}</div>
+            </div>
+        `;
+        
+        document.getElementById('analysisResult').classList.remove('hidden');
+        setTimeout(() => location.reload(), 3000);
+    });
+</script>
+{% endblock %}

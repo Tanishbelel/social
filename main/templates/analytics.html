@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="fade-in">
+    <h1 class="text-4xl font-bold text-white mb-6">
+        <i class="fas fa-chart-bar mr-2"></i>Advanced Analytics
+    </h1>
+
+    <div class="glass rounded-xl p-6 mb-6">
+        <h2 class="text-xl font-bold text-white mb-4">Filters</h2>
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <select name="platform" class="px-4 py-2 rounded-lg bg-white bg-opacity-20 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                <option value="">All Platforms</option>
+                <option value="instagram" {% if selected_platform == 'instagram' %}selected{% endif %}>Instagram</option>
+                <option value="twitter" {% if selected_platform == 'twitter' %}selected{% endif %}>Twitter</option>
+                <option value="facebook" {% if selected_platform == 'facebook' %}selected{% endif %}>Facebook</option>
+            </select>
+            
+            <select name="post_type" class="px-4 py-2 rounded-lg bg-white bg-opacity-20 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                <option value="">All Types</option>
+                <option value="reel" {% if selected_post_type == 'reel' %}selected{% endif %}>Reels</option>
+                <option value="carousel" {% if selected_post_type == 'carousel' %}selected{% endif %}>Carousels</option>
+                <option value="static" {% if selected_post_type == 'static' %}selected{% endif %}>Static</option>
+            </select>
+            
+            <select name="date_range" class="px-4 py-2 rounded-lg bg-white bg-opacity-20 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                <option value="7" {% if selected_date_range == '7' %}selected{% endif %}>Last 7 Days</option>
+                <option value="30" {% if selected_date_range == '30' %}selected{% endif %}>Last 30 Days</option>
+                <option value="90" {% if selected_date_range == '90' %}selected{% endif %}>Last 90 Days</option>
+            </select>
+            
+            <button type="submit" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 rounded-lg transition">
+                Apply Filters
+            </button>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div class="glass rounded-xl p-6">
+            <h2 class="text-2xl font-bold text-white mb-4">Engagement Over Time</h2>
+            <canvas id="engagementChart"></canvas>
+        </div>
+
+        <div class="glass rounded-xl p-6">
+            <h2 class="text-2xl font-bold text-white mb-4">Post Type Comparison</h2>
+            <canvas id="postTypeChart"></canvas>
+        </div>
+    </div>
+
+    <div class="glass rounded-xl p-6 mb-6">
+        <h2 class="text-2xl font-bold text-white mb-4">Hourly Performance Heatmap</h2>
+        <canvas id="hourlyChart"></canvas>
+    </div>
+
+    <div class="glass rounded-xl p-6">
+        <h2 class="text-2xl font-bold text-white mb-4">Top Hashtags</h2>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {% for hashtag in top_hashtags %}
+            <div class="bg-white bg-opacity-10 rounded-lg p-4 text-center hover:bg-opacity-20 transition">
+                <p class="text-yellow-300 text-2xl font-bold">#{{ hashtag.tag }}</p>
+                <p class="text-white text-sm mt-2">{{ hashtag.avg_eng|floatformat:2 }}% avg</p>
+                <p class="text-gray-300 text-xs">{{ hashtag.uses }} uses</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    const engagementData = {{ engagement_over_time|safe }};
+    
+    new Chart(document.getElementById('engagementChart'), {
+        type: 'line',
+        data: {
+            labels: engagementData.map(d => d.date),
+            datasets: [
+                {
+                    label: 'Likes',
+                    data: engagementData.map(d => d.likes),
+                    borderColor: 'rgb(251, 191, 36)',
+                    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                },
+                {
+                    label: 'Comments',
+                    data: engagementData.map(d => d.comments),
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: 'white' } } },
+            scales: {
+                y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+            }
+        }
+    });
+
+    const hourlyData = {{ hourly_performance|safe }};
+    
+    new Chart(document.getElementById('hourlyChart'), {
+        type: 'bar',
+        data: {
+            labels: hourlyData.map(d => d.hour + ':00'),
+            datasets: [{
+                label: 'Avg Engagement %',
+                data: hourlyData.map(d => d.avg_engagement),
+                backgroundColor: 'rgba(251, 191, 36, 0.6)',
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: 'white' } } },
+            scales: {
+                y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+            }
+        }
+    });
+</script>
+{% endblock %}
