@@ -12,6 +12,7 @@ import time
 import csv
 from .models import *
 from .utils import *
+from .insta import sync_public_instagram_account
 
 def register(request):
     if request.method == 'POST':
@@ -46,71 +47,103 @@ def user_logout(request):
     logout(request)
     return redirect('login')
 
+
 @login_required
 def dashboard(request):
-    accounts = SocialAccount.objects.filter(user=request.user)
-    
-    total_followers = accounts.aggregate(total=Sum('followers_count'))['total'] or 0
-    
-    all_posts = Post.objects.filter(account__user=request.user)
+    # 1️⃣ Get the most recently added account (any platform)
+    account = SocialAccount.objects.filter(
+        user=request.user,
+        is_active=True
+    ).order_by("-created_at").first()
+
+    if not account:
+        return render(request, "dashboard.html", {
+            "no_account": True
+        })
+
+    # 2️⃣ Sync Instagram only if it's an Instagram account
+    # FIX: Correct parameter order - username first, then user
+    if account.platform == "instagram" and not Post.objects.filter(account=account).exists():
+        try:
+            sync_public_instagram_account(
+                username=account.username,
+                user=request.user
+            )
+        except Exception as e:
+            print(f"Instagram sync error: {e}")
+            # Continue even if sync fails
+
+    all_posts = Post.objects.filter(account=account)
+
+    # 3️⃣ Stats
+    total_followers = account.followers_count
     total_posts = all_posts.count()
-    
-    total_engagement = all_posts.aggregate(
-        likes=Sum('likes'),
-        comments=Sum('comments'),
-        shares=Sum('shares'),
-        views=Sum('views')
-    )
-    
-    avg_engagement_rate = all_posts.aggregate(avg=Avg('engagement_rate'))['avg'] or 0
-    
-    recent_posts = all_posts.order_by('-posted_at')[:10]
-    
-    top_posts = all_posts.order_by('-engagement_rate')[:5]
-    
-    platform_stats = accounts.values('platform').annotate(
+
+    total_likes = all_posts.aggregate(Sum("likes"))["likes__sum"] or 0
+    total_comments = all_posts.aggregate(Sum("comments"))["comments__sum"] or 0
+
+    avg_engagement_rate = all_posts.aggregate(
+        Avg("engagement_rate")
+    )["engagement_rate__avg"] or 0
+
+    # 4️⃣ Top posts
+    top_posts = all_posts.order_by("-engagement_rate")[:5]
+
+    # 5️⃣ Platform stats (for all user's accounts) - FIXED
+    platform_stats = SocialAccount.objects.filter(
+        user=request.user,
+        is_active=True
+    ).values('platform').annotate(
         count=Count('id'),
         followers=Sum('followers_count')
-    )
-    
+    ).order_by('-followers')
+
+    # 6️⃣ Post type performance
     post_type_performance = all_posts.values('post_type').annotate(
         count=Count('id'),
         avg_engagement=Avg('engagement_rate'),
         total_likes=Sum('likes')
     ).order_by('-avg_engagement')
-    
-    insights = AIInsight.objects.filter(user=request.user, is_read=False)[:5]
-    
-    last_7_days = timezone.now() - timedelta(days=7)
-    weekly_posts = all_posts.filter(posted_at__gte=last_7_days)
-    
+
+    # 7️⃣ Engagement graph (last 7 days)
     daily_engagement = []
-    for i in range(7):
+    for i in range(6, -1, -1):
         day = timezone.now() - timedelta(days=i)
-        day_posts = weekly_posts.filter(posted_at__date=day.date())
+        day_posts = all_posts.filter(posted_at__date=day.date())
+
         daily_engagement.append({
-            'date': day.strftime('%Y-%m-%d'),
-            'engagement': day_posts.aggregate(total=Sum('likes'))['total'] or 0
+            "date": day.strftime("%Y-%m-%d"),
+            "engagement": (
+                (day_posts.aggregate(Sum("likes"))["likes__sum"] or 0) +
+                (day_posts.aggregate(Sum("comments"))["comments__sum"] or 0)
+            )
         })
-    
+
+    # 8️⃣ AI Insights (if you have an Insight model)
+    insights = []
+    # Uncomment if you have an Insight model:
+    # insights = AIInsight.objects.filter(user=request.user).order_by('-created_at')[:5]
+
+    # 9️⃣ Get all posts for gallery display
+    all_posts_display = all_posts.order_by('-posted_at')
+
     context = {
-        'accounts': accounts,
-        'total_followers': total_followers,
-        'total_posts': total_posts,
-        'total_likes': total_engagement['likes'] or 0,
-        'total_comments': total_engagement['comments'] or 0,
-        'total_shares': total_engagement['shares'] or 0,
-        'total_views': total_engagement['views'] or 0,
-        'avg_engagement_rate': round(avg_engagement_rate, 2),
-        'recent_posts': recent_posts,
-        'top_posts': top_posts,
-        'platform_stats': platform_stats,
-        'post_type_performance': post_type_performance,
-        'insights': insights,
-        'daily_engagement': json.dumps(daily_engagement[::-1]),
+        "account": account,
+        "total_followers": total_followers,
+        "total_posts": total_posts,
+        "total_likes": total_likes,
+        "total_comments": total_comments,
+        "avg_engagement_rate": round(avg_engagement_rate, 2),
+        "top_posts": top_posts,
+        "platform_stats": platform_stats,
+        "post_type_performance": post_type_performance,
+        "daily_engagement": json.dumps(daily_engagement),
+        "insights": insights,
+        "all_posts": all_posts_display,
     }
-    
-    return render(request, 'dashboard.html', context)
+
+    return render(request, "dashboard.html", context)
+
 
 @login_required
 def add_account(request):
@@ -118,6 +151,7 @@ def add_account(request):
         platform = request.POST.get('platform')
         username = request.POST.get('username')
         
+        # Check if account already exists
         account, created = SocialAccount.objects.get_or_create(
             user=request.user,
             platform=platform,
@@ -126,12 +160,24 @@ def add_account(request):
         )
         
         if created:
-            generate_sample_posts(account)
+            # If it's Instagram, sync real data
+            if platform == "instagram":
+                try:
+                    sync_public_instagram_account(
+                        username=username,
+                        user=request.user
+                    )
+                except Exception as e:
+                    print(f"Instagram sync error: {e}")
+                    # Generate sample data as fallback
+                    generate_sample_posts(account)
+            else:
+                # For other platforms, generate sample data
+                generate_sample_posts(account)
         
         return redirect('dashboard')
     
     return render(request, 'add_account.html')
-
 @login_required
 def analytics(request):
     accounts = SocialAccount.objects.filter(user=request.user)

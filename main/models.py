@@ -11,21 +11,32 @@ class SocialAccount(models.Model):
         ('tiktok', 'TikTok'),
         ('linkedin', 'LinkedIn'),
     ]
-    
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
     username = models.CharField(max_length=100)
-    access_token = models.TextField(blank=True)
+
+    profile_url = models.URLField(blank=True)
+    access_token = models.TextField(blank=True, null=True)
+
     is_active = models.BooleanField(default=True)
+
     followers_count = models.IntegerField(default=0)
+    following_count = models.IntegerField(default=0)   
+    posts_count = models.IntegerField(default=0)
+
+    last_synced = models.DateTimeField(null=True, blank=True)  
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         unique_together = ['user', 'platform', 'username']
-    
+
     def __str__(self):
         return f"{self.username} - {self.platform}"
+
+
 
 class Post(models.Model):
     POST_TYPE_CHOICES = [
@@ -34,6 +45,7 @@ class Post(models.Model):
         ('static', 'Static Post'),
         ('story', 'Story'),
         ('video', 'Video'),
+        ('photo', 'Photo'),  # Add this
     ]
     
     account = models.ForeignKey(SocialAccount, on_delete=models.CASCADE)
@@ -41,6 +53,7 @@ class Post(models.Model):
     post_type = models.CharField(max_length=20, choices=POST_TYPE_CHOICES)
     caption = models.TextField(blank=True)
     url = models.URLField()
+    thumbnail_url = models.URLField(blank=True, null=True)  # ⭐ ADD THIS LINE
     likes = models.IntegerField(default=0)
     comments = models.IntegerField(default=0)
     shares = models.IntegerField(default=0)
@@ -60,6 +73,8 @@ class Post(models.Model):
             engagement = self.likes + self.comments + self.shares
             self.engagement_rate = (engagement / self.account.followers_count) * 100
         return self.engagement_rate
+
+
 
 class PostAnalytics(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
