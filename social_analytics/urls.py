@@ -16,4 +16,8 @@ urlpatterns = [
     path('competitor/', views.competitor_analysis, name='competitor'),
     path('viral-predictor/', views.viral_predictor, name='viral_predictor'),
     path('export-report/', views.export_report, name='export_report'),
+    path('delete-account/', views.delete_account, name='delete_account'),
+    path('switch-account/', views.switch_account, name='switch_account'),
+
+
 ]
