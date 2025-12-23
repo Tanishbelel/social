@@ -175,28 +175,40 @@ def switch_account(request, account_id):
 
 @login_required
 def add_account(request):
+    platforms = ['instagram', 'twitter', 'facebook', 'youtube', 'tiktok']
+    
     if request.method == 'POST':
         platform = request.POST.get('platform', '').lower()
-        username = request.POST.get('username', '').strip()
+        username = request.POST.get('username', '').strip().replace('@', '')  # Remove @ if user adds it
         
+        # Validation
         if not platform or not username:
             return render(request, 'add_account.html', {
                 'error': 'Please provide both platform and username.',
-                'platforms': ['instagram', 'twitter', 'facebook', 'youtube', 'tiktok']
+                'platforms': platforms
             })
         
+        if platform not in platforms:
+            return render(request, 'add_account.html', {
+                'error': f'Invalid platform selected.',
+                'platforms': platforms
+            })
+        
+        # Check for existing account
         existing = SocialAccount.objects.filter(
             user=request.user,
             platform=platform,
-            username=username
+            username=username,
+            is_active=True
         ).first()
         
         if existing:
             return render(request, 'add_account.html', {
-                'error': f'Account @{username} on {platform} is already connected.',
-                'platforms': ['instagram', 'twitter', 'facebook', 'youtube', 'tiktok']
+                'error': f'Account @{username} on {platform.title()} is already connected.',
+                'platforms': platforms
             })
         
+        # Create account
         account = SocialAccount.objects.create(
             user=request.user,
             platform=platform,
@@ -205,6 +217,7 @@ def add_account(request):
             is_active=True
         )
         
+        # Handle Instagram
         if platform == "instagram":
             try:
                 synced_account = sync_public_instagram_account(
@@ -213,16 +226,18 @@ def add_account(request):
                 )
                 
                 if synced_account:
+                    post_count = Post.objects.filter(account=synced_account).count()
                     request.session['selected_account_id'] = synced_account.id
-                    return render(request, 'add_account.html', {
-                        'success': f'✅ Successfully synced @{username} from Instagram! Found {Post.objects.filter(account=synced_account).count()} posts.',
-                        'platforms': ['instagram', 'twitter', 'facebook', 'youtube', 'tiktok']
-                    })
+                    
+                    # Redirect to dashboard on success instead of showing form again
+                    from django.contrib import messages
+                    messages.success(request, f'✅ Successfully synced @{username} from Instagram! Found {post_count} posts.')
+                    return redirect('dashboard')
                 else:
                     account.delete()
                     return render(request, 'add_account.html', {
                         'error': f'❌ Could not find Instagram account @{username}. Make sure the account is public.',
-                        'platforms': ['instagram', 'twitter', 'facebook', 'youtube', 'tiktok']
+                        'platforms': platforms
                     })
                     
             except Exception as e:
@@ -235,24 +250,25 @@ def add_account(request):
                 
                 return render(request, 'add_account.html', {
                     'error': f'❌ {error_msg}',
-                    'platforms': ['instagram', 'twitter', 'facebook', 'youtube', 'tiktok']
+                    'platforms': platforms
                 })
+        
+        # Handle other platforms
         else:
             account.followers_count = random.randint(1000, 50000)
             account.save()
             generate_sample_posts_for_platform(account)
             
             request.session['selected_account_id'] = account.id
-            return render(request, 'add_account.html', {
-                'success': f'✅ Successfully added @{username} on {platform.title()}!',
-                'platforms': ['instagram', 'twitter', 'facebook', 'youtube', 'tiktok']
-            })
+            
+            # Redirect to dashboard on success
+            from django.contrib import messages
+            messages.success(request, f'✅ Successfully added @{username} on {platform.title()}!')
+            return redirect('dashboard')
     
     return render(request, 'add_account.html', {
-        'platforms': ['instagram', 'twitter', 'facebook', 'youtube', 'tiktok']
+        'platforms': platforms
     })
-
-
 def generate_sample_posts_for_platform(account):
     if account.platform == "instagram":
         return
